@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brainkit"
+version = "1.0.0"
+readme = "README.md"
+license = {text = "MIT"}
+description = "Model-agnostic shared memory (Markdown + git) for multi-vendor agent teams"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6,<3",
+  "PyYAML>=6",
+  "httpx>=0.27",
+  "starlette>=0.37",
+  "uvicorn>=0.29",
+  "mcp>=2.2,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+brain = "brainkit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["brainkit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

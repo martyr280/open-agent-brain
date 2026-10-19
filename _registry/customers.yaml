@@ -1,0 +1,18 @@
+# Customer registry. One entry per customer, project, internal product, or program.
+# - slug: folder name under customers/ (lowercase, dashes). Never rename; add an alias instead.
+# - aliases: every name people and agents use. Each alias must map to one slug only.
+# - match.email_domains / match.emails / match.calendar_keywords: how the Gmail and Calendar
+#   ingestors route mail and meetings to this customer. EMPTY = no email/calendar ingestion.
+# - sources.github_repos: owner/repo of the customer's code (for the commits ingestor).
+# - status: active | prospect | internal | paused | closed
+# - snippet_chars: how much of each email preview to store (0 = subject and addresses only).
+#
+# Add customers with:  brain customer add <slug> --name "Name" --alias <alias> --domain <domain>
+customers:
+  - slug: example-co
+    name: Example Co
+    status: prospect
+    aliases: [example, example company]
+    team: [owner]
+    match: {email_domains: [example.com], emails: [], calendar_keywords: [example co]}
+    sources: {github_repos: []}

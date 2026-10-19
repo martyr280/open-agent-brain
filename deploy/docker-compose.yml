@@ -1,0 +1,10 @@
+# Self-host the gateway on any Docker host (home server, VPS). Put it behind HTTPS
+# (Caddy, Cloudflare Tunnel) before you connect cloud clients such as ChatGPT or Claude.ai.
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    env_file: ../.env

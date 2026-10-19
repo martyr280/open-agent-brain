@@ -1,0 +1,114 @@
+name: brain-cron
+
+# Ingest (Gmail, Calendar, GitHub commits) -> rollup -> gaps -> push.
+# Hourly keeps Actions usage near 720 min/month. The gateway computes context live,
+# so API agents never wait for this job; only git readers see STATE.md lag.
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+    inputs:
+      gaps:
+        description: "Also run the gaps report"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brain-writer
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # Off by default so a fresh copy of the template does nothing. Turn it on with the
+    # repository variable BRAIN_CRON_ENABLED=true once your private brain is configured.
+    if: vars.BRAIN_CRON_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BRAIN_STORE: local
+      BRAIN_GIT_COMMIT: "1"
+      BRAIN_GIT_AUTHOR: "brain-bot <brain-bot@users.noreply.github.com>"
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_ACCOUNTS: ${{ vars.GOOGLE_ACCOUNTS }}
+      GOOGLE_WORK_REFRESH_TOKEN: ${{ secrets.GOOGLE_WORK_REFRESH_TOKEN }}
+      GOOGLE_WORK_ADDRESSES: ${{ vars.GOOGLE_WORK_ADDRESSES }}
+      GOOGLE_PERSONAL_REFRESH_TOKEN: ${{ secrets.GOOGLE_PERSONAL_REFRESH_TOKEN }}
+      GOOGLE_PERSONAL_ADDRESSES: ${{ vars.GOOGLE_PERSONAL_ADDRESSES }}
+      BRAIN_GITHUB_INGEST_TOKEN: ${{ secrets.BRAIN_GITHUB_INGEST_TOKEN }}
+      BRAIN_INGEST_BACKFILL_DAYS: ${{ vars.BRAIN_INGEST_BACKFILL_DAYS || '30' }}
+      BRAIN_GAPS_WEBHOOK: ${{ secrets.BRAIN_GAPS_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for the immutability check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - name: Git identity (needed when a push retry rebases)
+        run: |
+          git config user.name "brain-bot"
+          git config user.email "brain-bot@users.noreply.github.com"
+      - name: Validate everything since the last checkpoint
+        id: validate
+        continue-on-error: true   # keep ingesting; the last step fails the run if this failed
+        run: |
+          # Checkpoint = git tag "brain-validated" (a tag, not a commit, so no hourly commit noise).
+          base="$(git rev-parse -q --verify 'refs/tags/brain-validated^{commit}' || true)"
+          if [ -n "$base" ]; then
+            brain validate --immutable-against "$base"
+          else
+            brain validate
+          fi
+          git tag -f brain-validated HEAD
+          git push -q -f origin refs/tags/brain-validated
+      - name: Ingest
+        id: ingest
+        continue-on-error: true   # keep rollup + push going; the last step fails the run if this failed
+        run: |
+          # A configured account with a missing secret used to be skipped silently. Fail instead.
+          missing=""
+          if [ -n "$GOOGLE_ACCOUNTS" ]; then
+            [ -z "$GOOGLE_CLIENT_ID" ] && missing="$missing GOOGLE_CLIENT_ID"
+            [ -z "$GOOGLE_CLIENT_SECRET" ] && missing="$missing GOOGLE_CLIENT_SECRET"
+            for a in $(echo "$GOOGLE_ACCOUNTS" | tr ',' ' '); do
+              v="GOOGLE_$(echo "$a" | tr 'a-z-' 'A-Z_')_REFRESH_TOKEN"
+              [ -z "${!v}" ] && missing="$missing $v"
+            done
+          fi
+          rc=0
+          brain ingest all || rc=$?
+          if [ -n "$missing" ]; then
+            echo "::error::Google ingestors are not fully configured; missing:$missing"
+            rc=1
+          fi
+          [ "$rc" -eq 0 ] || echo "::error::one or more ingestors failed (see the JSON above)"
+          exit $rc
+      - name: Rollup
+        run: brain rollup
+      - name: Gaps (daily at 11:07 UTC, or on manual run)
+        env:
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' && inputs.gaps }}
+        run: |
+          if [ "$MANUAL" = "true" ] || [ "$(date -u +%H)" = "11" ]; then
+            brain gaps --write > /dev/null && echo "gaps report written"
+          else
+            echo "not gaps hour; skipped"
+          fi
+      - name: Push (rebase-retry; event paths never conflict)
+        run: bash tools/commit_push.sh
+      - name: Fail the run if validation failed
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "::error::brain validate failed; see the 'Validate everything' step. The checkpoint did not move."
+          exit 1
+      - name: Fail the run if an ingestor failed
+        if: steps.ingest.outcome == 'failure'
+        run: |
+          echo "::error::an ingestor failed or is misconfigured; see the 'Ingest' step. Events from healthy ingestors were still pushed."
+          exit 1

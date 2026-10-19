@@ -1,0 +1,22 @@
+# Render Blueprint: New > Blueprint > pick this repo. Fill the sync:false values in the dashboard.
+services:
+  - type: web
+    name: agent-brain-gateway
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: false   # deploy code changes on purpose; event commits must not redeploy
+    envVars:
+      - key: BRAIN_STORE
+        value: github
+      - key: BRAIN_GITHUB_REPO
+        sync: false      # owner/repo of this brain
+      - key: BRAIN_GITHUB_TOKEN
+        sync: false      # fine-grained PAT: this repo only, Contents read/write
+      - key: BRAIN_GITHUB_BRANCH
+        value: main
+      - key: BRAIN_PUBLIC_URL
+        sync: false      # https://<your-service>.onrender.com (used in /openapi.json)
+      - key: BRAIN_WRITES_PER_MINUTE
+        value: "120"

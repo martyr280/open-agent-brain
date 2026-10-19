@@ -1,0 +1,122 @@
+# Agent registry. One identity per human, agent, and ingestor.
+# Keys are never stored here, only key_sha256. Issue or rotate a key with:
+#   brain agent add <id> --vendor <vendor> --rotate     (prints the key once)
+# Limit an agent to some customers with --customers slug1,slug2.
+agents:
+- id: owner
+  vendor: human
+  kind: human
+  operator: owner
+  description: The operator who owns this brain (rename to your handle)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: claude-desktop
+  vendor: anthropic
+  kind: agent
+  operator: owner
+  description: Claude app (claude.ai / desktop)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: claude-code
+  vendor: anthropic
+  kind: agent
+  operator: owner
+  description: Claude Code CLI
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: chatgpt
+  vendor: openai
+  kind: agent
+  operator: owner
+  description: ChatGPT (connector or Custom GPT)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: codex
+  vendor: openai
+  kind: agent
+  operator: owner
+  description: Codex CLI
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: gemini
+  vendor: google
+  kind: agent
+  operator: owner
+  description: Gemini CLI / API
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: grok
+  vendor: xai
+  kind: agent
+  operator: owner
+  description: Grok via xAI API
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: local-oss
+  vendor: local
+  kind: agent
+  operator: owner
+  description: Open-source model (Ollama / LM Studio / vLLM)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: automation
+  vendor: system
+  kind: ingestor
+  operator: owner
+  description: n8n / Zapier / webhook automations
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: ingest-gmail
+  vendor: system
+  kind: ingestor
+  description: Gmail ingestor (CI)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: ingest-gcal
+  vendor: system
+  kind: ingestor
+  description: Google Calendar ingestor (CI)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
+- id: ingest-github
+  vendor: system
+  kind: ingestor
+  description: GitHub commits ingestor (CI)
+  scopes:
+  - read
+  - write
+  customers:
+  - '*'
